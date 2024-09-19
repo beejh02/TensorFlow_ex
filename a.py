@@ -91,7 +91,7 @@ import numpy as np
 from tensorflow.keras.preprocessing import image
 
 # 새로운 이미지 로드 및 전처리
-img = image.load_img('C:/Users/suk01/Desktop/Programming/TensorFlow_ex/검증이미지/식혜.jpg', target_size=(img_height, img_width))
+img = image.load_img('C:/Users/suk01/Desktop/Programming/TensorFlow_ex/검증이미지/찌그러진캔.jpg', target_size=(img_height, img_width))
 img_array = image.img_to_array(img)
 img_array = tf.expand_dims(img_array, 0)  # 배치 차원 추가
 
