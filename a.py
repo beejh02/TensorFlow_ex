@@ -10,7 +10,7 @@ batch_size = 32
 
 # 학습용 데이터셋 로드
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
-  "C:/Users/joon0/Desktop/Programming/TensorFlow_ex/image_data/",  # 이미지 폴더 경로
+  "./image_data/",  # 이미지 폴더 경로
   validation_split=0.2,  # 20%는 검증용 데이터로 사용
   subset="training",  # 학습용 데이터로 설정
   seed=123,  # 랜덤 시드 고정
@@ -20,7 +20,7 @@ train_ds = tf.keras.preprocessing.image_dataset_from_directory(
 
 # 검증용 데이터셋 로드
 val_ds = tf.keras.preprocessing.image_dataset_from_directory(
-  "C:/Users/joon0/Desktop/Programming/TensorFlow_ex/image_data/",
+  "./image_data/",
   validation_split=0.2,
   subset="validation",
   seed=123,
@@ -77,7 +77,7 @@ loss, accuracy = model.evaluate(val_ds)
 print(f"Validation accuracy: {accuracy}")
 
 # 새로운 이미지 예측
-img = image.load_img('C:/Users/joon0/Desktop/Programming/TensorFlow_ex/검증이미지/찌그러진캔.jpg', target_size=(img_height, img_width))
+img = image.load_img('./검증이미지/찌그러진캔.jpg', target_size=(img_height, img_width))
 img_array = image.img_to_array(img)
 img_array = tf.expand_dims(img_array, 0)  # 배치 차원 추가
 predictions = model.predict(img_array)
