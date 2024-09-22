@@ -51,17 +51,16 @@ data_augmentation = tf.keras.Sequential([
   tf.keras.layers.RandomRotation(0.2),
 ])
 
-for image, _ in train_dataset.take(1):
-  plt.figure(figsize=(10, 10))
-  first_image = image[0]
-  for i in range(9):
-    ax = plt.subplot(3, 3, i + 1)
-    augmented_image = data_augmentation(tf.expand_dims(first_image, 0))
-    plt.imshow(augmented_image[0] / 255)
-    plt.axis('off')
+# for image, _ in train_dataset.take(1):
+#   plt.figure(figsize=(10, 10))
+#   first_image = image[0]
+#   for i in range(9):
+#     ax = plt.subplot(3, 3, i + 1)
+#     augmented_image = data_augmentation(tf.expand_dims(first_image, 0))
+#     plt.imshow(augmented_image[0] / 255)
+#     plt.axis('off')
 
 preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
-
 rescale = tf.keras.layers.Rescaling(1./127.5, offset=-1)
 
 # Create the base model from the pre-trained model MobileNet V2
