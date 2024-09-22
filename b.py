@@ -1,84 +1,224 @@
-import tensorflow as tf
-from tensorflow.keras import layers
+import matplotlib.pyplot as plt
 import numpy as np
-from tensorflow.keras.preprocessing import image
+import os
+import tensorflow as tf
 
-# 이미지 크기 및 배치 크기 설정
-img_height = 180
-img_width = 180
-batch_size = 64
+_URL = 'https://storage.googleapis.com/mledu-datasets/cats_and_dogs_filtered.zip'
+path_to_zip = tf.keras.utils.get_file('cats_and_dogs.zip', origin=_URL, extract=True)
+PATH = os.path.join(os.path.dirname(path_to_zip), 'cats_and_dogs_filtered')
 
-# 학습용 데이터셋 로드
-train_ds = tf.keras.preprocessing.image_dataset_from_directory(
-  "./image_data/",                                                      # 이미지 폴더 경로
-  validation_split=0.2,                                                 # 20%는 검증용 데이터로 사용
-  subset="training",                                                    # 학습용 데이터로 설정
-  seed=123,                                                             # 랜덤 시드 고정
-  image_size=(img_height, img_width),                                   # 이미지 크기 조정
-)
+train_dir = os.path.join(PATH, 'train')
+validation_dir = os.path.join(PATH, 'validation')
 
-# 검증용 데이터셋 로드
-val_ds = tf.keras.preprocessing.image_dataset_from_directory(
-  "./image_data/",
-  validation_split=0.2,
-  subset="validation",
-  seed=123,
-  image_size=(img_height, img_width),
-)
+BATCH_SIZE = 32
+IMG_SIZE = (160, 160)
 
-class_names = train_ds.class_names
-print(class_names)                                                      # 예시 출력: ['cats', 'dogs']
+train_dataset = tf.keras.utils.image_dataset_from_directory(train_dir,
+                                                            shuffle=True,
+                                                            batch_size=BATCH_SIZE,
+                                                            image_size=IMG_SIZE)
 
+validation_dataset = tf.keras.utils.image_dataset_from_directory(validation_dir,
+                                                                 shuffle=True,
+                                                                 batch_size=BATCH_SIZE,
+                                                                 image_size=IMG_SIZE)
 
-######################
-######################
+class_names = train_dataset.class_names
 
+plt.figure(figsize=(10, 10))
+for images, labels in train_dataset.take(1):
+  for i in range(9):
+    ax = plt.subplot(3, 3, i + 1)
+    plt.imshow(images[i].numpy().astype("uint8"))
+    plt.title(class_names[labels[i]])
+    plt.axis("off")
 
-# 데이터 증강 레이어
-data_augmentation = tf.keras.Sequential([
-  layers.RandomFlip("horizontal", input_shape=(img_height, img_width, 3)),
-  layers.RandomRotation(0.1),
-  layers.RandomZoom(0.1),
-])
+val_batches = tf.data.experimental.cardinality(validation_dataset)
+test_dataset = validation_dataset.take(val_batches // 5)
+validation_dataset = validation_dataset.skip(val_batches // 5)
+
+print('Number of validation batches: %d' % tf.data.experimental.cardinality(validation_dataset))
+print('Number of test batches: %d' % tf.data.experimental.cardinality(test_dataset))
 
 AUTOTUNE = tf.data.AUTOTUNE
 
-# 학습 데이터셋 캐시 및 프리페치
-train_ds = train_ds.shuffle(1000).prefetch(buffer_size=AUTOTUNE)
+train_dataset = train_dataset.prefetch(buffer_size=AUTOTUNE)
+validation_dataset = validation_dataset.prefetch(buffer_size=AUTOTUNE)
+test_dataset = test_dataset.prefetch(buffer_size=AUTOTUNE)
 
-# 검증 데이터셋 프리페치
-val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
-
-# 모델 정의
-model = tf.keras.Sequential([
-  data_augmentation,  # 데이터 증강
-  layers.Conv2D(32, 3, activation='relu', padding='same'),   # 첫 번째 Convolution 층 (padding='same')
-  layers.MaxPooling2D(pool_size=(1, 2)),                     # 첫 번째 MaxPooling (pool_size 변경)
-  layers.Conv2D(64, 3, activation='relu', padding='same'),   # 두 번째 Convolution 층 (padding='same')
-  layers.MaxPooling2D(pool_size=(1, 2)),                     # 두 번째 MaxPooling (pool_size 변경)
-  layers.Conv2D(128, 3, activation='relu', padding='same'),  # 세 번째 Convolution 층 (padding='same')
-  layers.MaxPooling2D(pool_size=(1, 2)),                     # 세 번째 MaxPooling (pool_size 변경)
-  layers.Flatten(),                                          # 2D 데이터를 1D로 변환
-  layers.Dense(128, activation='relu'),                      # Fully Connected Layer
-  layers.Dense(len(class_names), activation='softmax')       # 출력층
+data_augmentation = tf.keras.Sequential([
+  tf.keras.layers.RandomFlip('horizontal'),
+  tf.keras.layers.RandomRotation(0.2),
 ])
 
+for image, _ in train_dataset.take(1):
+  plt.figure(figsize=(10, 10))
+  first_image = image[0]
+  for i in range(9):
+    ax = plt.subplot(3, 3, i + 1)
+    augmented_image = data_augmentation(tf.expand_dims(first_image, 0))
+    plt.imshow(augmented_image[0] / 255)
+    plt.axis('off')
 
-model.compile(optimizer='adam',
-              loss='sparse_categorical_crossentropy',
+preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
+
+rescale = tf.keras.layers.Rescaling(1./127.5, offset=-1)
+
+# Create the base model from the pre-trained model MobileNet V2
+IMG_SHAPE = IMG_SIZE + (3,)
+base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,
+                                               include_top=False,
+                                               weights='imagenet')
+
+# Create the base model from the pre-trained model MobileNet V2
+IMG_SHAPE = IMG_SIZE + (3,)
+base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE,
+                                               include_top=False,
+                                               weights='imagenet')
+
+image_batch, label_batch = next(iter(train_dataset))
+feature_batch = base_model(image_batch)
+print(feature_batch.shape)
+
+base_model.trainable = False
+
+# Let's take a look at the base model architecture
+base_model.summary()
+
+global_average_layer = tf.keras.layers.GlobalAveragePooling2D()
+feature_batch_average = global_average_layer(feature_batch)
+print(feature_batch_average.shape)
+
+prediction_layer = tf.keras.layers.Dense(1)
+prediction_batch = prediction_layer(feature_batch_average)
+print(prediction_batch.shape)
+
+inputs = tf.keras.Input(shape=(160, 160, 3))
+x = data_augmentation(inputs)
+x = preprocess_input(x)
+x = base_model(x, training=False)
+x = global_average_layer(x)
+x = tf.keras.layers.Dropout(0.2)(x)
+outputs = prediction_layer(x)
+model = tf.keras.Model(inputs, outputs)
+
+base_learning_rate = 0.0001
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=base_learning_rate),
+              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
-# 모델 학습
-history = model.fit(train_ds, validation_data=val_ds, epochs=10)
+model.summary()
 
-# 검증 정확도 확인
-loss, accuracy = model.evaluate(val_ds)
-print(f"Validation accuracy: {accuracy}")
+len(model.trainable_variables)
 
-# 새로운 이미지 예측
-img = image.load_img('./Classification_Image/페트병.jpg', target_size=(img_height, img_width))
-img_array = image.img_to_array(img)
-img_array = tf.expand_dims(img_array, 0)                                  # 배치 차원 추가
-predictions = model.predict(img_array)
-predicted_class = np.argmax(predictions)
-print(f"Predicted class: {class_names[predicted_class]}")
+initial_epochs = 10
+
+loss0, accuracy0 = model.evaluate(validation_dataset)
+
+print("initial loss: {:.2f}".format(loss0))
+print("initial accuracy: {:.2f}".format(accuracy0))
+
+history = model.fit(train_dataset,
+                    epochs=initial_epochs,
+                    validation_data=validation_dataset)
+
+acc = history.history['accuracy']
+val_acc = history.history['val_accuracy']
+
+loss = history.history['loss']
+val_loss = history.history['val_loss']
+
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
+plt.plot(acc, label='Training Accuracy')
+plt.plot(val_acc, label='Validation Accuracy')
+plt.legend(loc='lower right')
+plt.ylabel('Accuracy')
+plt.ylim([min(plt.ylim()),1])
+plt.title('Training and Validation Accuracy')
+
+plt.subplot(2, 1, 2)
+plt.plot(loss, label='Training Loss')
+plt.plot(val_loss, label='Validation Loss')
+plt.legend(loc='upper right')
+plt.ylabel('Cross Entropy')
+plt.ylim([0,1.0])
+plt.title('Training and Validation Loss')
+plt.xlabel('epoch')
+plt.show()
+
+base_model.trainable = True
+
+# Let's take a look to see how many layers are in the base model
+print("Number of layers in the base model: ", len(base_model.layers))
+
+# Fine-tune from this layer onwards
+fine_tune_at = 100
+
+# Freeze all the layers before the `fine_tune_at` layer
+for layer in base_model.layers[:fine_tune_at]:
+  layer.trainable = False
+
+model.compile(loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+              optimizer = tf.keras.optimizers.RMSprop(learning_rate=base_learning_rate/10),
+              metrics=['accuracy'])
+
+model.summary()
+
+len(model.trainable_variables)
+
+fine_tune_epochs = 10
+total_epochs =  initial_epochs + fine_tune_epochs
+
+history_fine = model.fit(train_dataset,
+                         epochs=total_epochs,
+                         initial_epoch=history.epoch[-1],
+                         validation_data=validation_dataset)
+
+acc += history_fine.history['accuracy']
+val_acc += history_fine.history['val_accuracy']
+
+loss += history_fine.history['loss']
+val_loss += history_fine.history['val_loss']
+
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
+plt.plot(acc, label='Training Accuracy')
+plt.plot(val_acc, label='Validation Accuracy')
+plt.ylim([0.8, 1])
+plt.plot([initial_epochs-1,initial_epochs-1],
+          plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='lower right')
+plt.title('Training and Validation Accuracy')
+
+plt.subplot(2, 1, 2)
+plt.plot(loss, label='Training Loss')
+plt.plot(val_loss, label='Validation Loss')
+plt.ylim([0, 1.0])
+plt.plot([initial_epochs-1,initial_epochs-1],
+         plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='upper right')
+plt.title('Training and Validation Loss')
+plt.xlabel('epoch')
+plt.show()
+
+loss, accuracy = model.evaluate(test_dataset)
+print('Test accuracy :', accuracy)
+
+# Retrieve a batch of images from the test set
+image_batch, label_batch = test_dataset.as_numpy_iterator().next()
+predictions = model.predict_on_batch(image_batch).flatten()
+
+# Apply a sigmoid since our model returns logits
+predictions = tf.nn.sigmoid(predictions)
+predictions = tf.where(predictions < 0.5, 0, 1)
+
+print('Predictions:\n', predictions.numpy())
+print('Labels:\n', label_batch)
+
+plt.figure(figsize=(10, 10))
+for i in range(9):
+  ax = plt.subplot(3, 3, i + 1)
+  plt.imshow(image_batch[i].astype("uint8"))
+  plt.title(class_names[predictions[i]])
+  plt.axis("off")

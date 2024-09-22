@@ -37,16 +37,14 @@ print(class_names)                                                      # 예시
 # 데이터 증강 레이어
 data_augmentation = tf.keras.Sequential([
   layers.RandomFlip("horizontal", input_shape=(img_height, img_width, 3)),
-  layers.RandomRotation(0.1),
+  layers.RandomRotation(0.2),
   layers.RandomZoom(0.1),
 ])
 
-AUTOTUNE = tf.data.AUTOTUNE
-
 # 학습 데이터셋 캐시 및 프리페치
-train_ds = train_ds.shuffle(1000).prefetch(buffer_size=AUTOTUNE)
-
 # 검증 데이터셋 프리페치
+AUTOTUNE = tf.data.AUTOTUNE
+train_ds = train_ds.shuffle(1000).prefetch(buffer_size=AUTOTUNE)
 val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
 
 # 모델 정의
